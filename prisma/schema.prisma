@@ -1,0 +1,39 @@
+// Prisma schema for demo auth + Stripe linkage
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id               Int       @id @default(autoincrement())
+  email            String    @unique
+  passwordHash     String
+  stripeCustomerId String?   @unique
+  createdAt        DateTime  @default(now())
+  role             String    
+  subscriptions    Subscription[]
+}
+
+model Subscription {
+  id                    Int       @id @default(autoincrement())
+  user                  User      @relation(fields: [userId], references: [id])
+  userId                Int
+  priceId               String
+  stripeSubscriptionId  String   @unique
+  status                String
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([userId, priceId])
+}
+
+model PortalConfig {
+  id              Int      @id @default(autoincrement())
+  role            String   @unique
+  configurationId String
+  createdAt       DateTime @default(now())
+}
