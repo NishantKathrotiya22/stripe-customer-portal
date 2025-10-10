@@ -1,9 +1,13 @@
-// lib/stipeService.ts - unified Stripe singleton + helpers
+// lib/stripeService.ts - unified Stripe singleton + helpers (Customer Portal focused)
 import Stripe from "stripe";
 import { prisma } from "@/lib/db";
 
 let stripeSingleton: Stripe | null = null;
 
+/**
+ * Get a singleton Stripe client.
+ * Relies on STRIPE_SECRET_KEY being set in env.
+ */
 export function getStripe() {
   if (!stripeSingleton) {
     stripeSingleton = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -11,12 +15,13 @@ export function getStripe() {
   return stripeSingleton;
 }
 
-// Fetch products (demo: fetch all, attach first price per product)
+/**
+ * Fetch all Stripe products and attach first active price (demo helper).
+ */
 export const getProducts = async () => {
   const stripe = getStripe();
   const products = await stripe.products.list();
 
-  // For demo: fetch price for the first matched product; otherwise attach first price per product
   const mapped = await Promise.all(
     products.data.map(async (p) => {
       const prices = await stripe.prices.list({
@@ -37,7 +42,9 @@ export const getProducts = async () => {
   return mapped;
 };
 
-// Ensure Stripe customer exists for a given user; persist customer id
+/**
+ * Ensure a Stripe customer exists for an app user and persist its id.
+ */
 export const ensureCustomerForUser = async (userId: number) => {
   const stripe = getStripe();
   let user = await prisma.user.findUnique({ where: { id: userId } });
@@ -53,7 +60,9 @@ export const ensureCustomerForUser = async (userId: number) => {
   return user;
 };
 
-// Create checkout session for subscription
+/**
+ * Create a subscription Checkout Session for given price.
+ */
 export const createCheckoutSession = async (
   priceId: string,
   customerId?: string
@@ -74,7 +83,11 @@ export const createCheckoutSession = async (
   return session.url;
 };
 
-// Build or reuse a Billing Portal configuration per role
+/**
+ * Build a Stripe Billing Portal Configuration based on user's role.
+ * - role === "user": can view invoices, update payment method, cancel; cannot change plan
+ * - otherwise: can also update subscriptions across allowed products/prices
+ */
 export const ensurePortalConfigurationForRole = async (role: string) => {
   const stripe = getStripe();
 
@@ -88,9 +101,8 @@ export const ensurePortalConfigurationForRole = async (role: string) => {
     },
   };
 
-  // If the role is not 'user', enable subscription_update with products
   if (role !== "user") {
-    // Fetch all active products and their active prices
+    // Build product constraints so users can switch between allowed plans in portal
     const productsList = await stripe.products.list({ active: true });
     const products = await Promise.all(
       productsList.data.map(async (prod) => {
@@ -108,43 +120,31 @@ export const ensurePortalConfigurationForRole = async (role: string) => {
     features.subscription_update = {
       enabled: true,
       products,
-      default_allowed_updates: ["price", "quantity", "promotion_code"], // Move allowed updates here
-      proration_behavior: "none", // Optional, adjust as needed
+      default_allowed_updates: ["price", "quantity", "promotion_code"],
+      proration_behavior: "none",
     };
   } else {
-    // For 'user' role, disable subscription_update
     features = {
       ...features,
-      subscription_update: {
-        enabled: false,
-      },
+      subscription_update: { enabled: false },
     };
   }
 
-  // Ensure that configuration is created and return its ID
-  const conf = await stripe.billingPortal.configurations.create({
-    features,
-  });
-
-  // Check if configuration was created successfully
-  if (!conf || !conf.id) {
-    throw new Error("Failed to create a valid configuration");
-  }
-
+  const conf = await stripe.billingPortal.configurations.create({ features });
+  if (!conf?.id) throw new Error("Failed to create a valid configuration");
   return conf.id;
 };
-// Create a portal session for a user with role-aware configuration
+
+/**
+ * Create a Billing Portal session for the user's Stripe customer using a role-aware configuration.
+ */
 export const createPortalSessionForUser = async (userId: number) => {
   const stripe = getStripe();
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user?.stripeCustomerId) throw new Error("No Stripe customer linked");
 
   const configurationId = await ensurePortalConfigurationForRole(user.role);
-
-  // Check if the configuration ID is valid
-  if (!configurationId) {
-    throw new Error("Invalid configuration ID for user role: " + user.role);
-  }
+  if (!configurationId) throw new Error("Invalid configuration for role: " + user.role);
 
   const session = await stripe.billingPortal.sessions.create({
     customer: user.stripeCustomerId,
@@ -152,6 +152,5 @@ export const createPortalSessionForUser = async (userId: number) => {
     configuration: configurationId,
   });
 
-  // Return the session URL
   return session.url;
 };
