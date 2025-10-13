@@ -8,7 +8,6 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [role, setRole] = useState<"user" | "admin">("user");
   const [loading, setLoading] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -19,7 +18,7 @@ export default function SignupPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password, role: "admin" }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -60,31 +59,7 @@ export default function SignupPage() {
               required
             />
           </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-sm opacity-80">Role</label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="role"
-                  value="user"
-                  checked={role === "user"}
-                  onChange={() => setRole("user")}
-                />
-                User
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="role"
-                  value="admin"
-                  checked={role === "admin"}
-                  onChange={() => setRole("admin")}
-                />
-                Admin
-              </label>
-            </div>
-          </div>
+
           <button
             disabled={loading}
             type="submit"
@@ -94,7 +69,10 @@ export default function SignupPage() {
           </button>
         </form>
         <p className="mt-4 opacity-80">
-          Already have an account? <a className="underline" href="/signin">Sign in</a>
+          Already have an account?{" "}
+          <a className="underline" href="/signin">
+            Sign in
+          </a>
         </p>
       </div>
     </main>
