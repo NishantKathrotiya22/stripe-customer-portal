@@ -72,7 +72,7 @@ const ProductDisplay = ({ products }: { products: any[] }) => {
     <section className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold">Srripe</h1>
+          <h1 className="text-3xl font-semibold">Stripe</h1>
           <p className="opacity-80">
             Pick a plan and manage it anytime in the Customer Portal.
           </p>
